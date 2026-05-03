@@ -83,6 +83,13 @@ func (n *FeishuNotifier) SendJobEnd(jobID int64, source string, success bool, du
 	return n.sendText(content)
 }
 
+func (n *FeishuNotifier) SendText(content string) error {
+	if !n.Enabled() {
+		return nil
+	}
+	return n.sendText(strings.TrimSpace(content))
+}
+
 func (n *FeishuNotifier) sendText(content string) error {
 	payload := map[string]any{
 		"msg_type": "text",

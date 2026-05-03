@@ -366,6 +366,13 @@ func (s *Store) exportSingleColumn(ctx context.Context, query string, args ...an
 	return out, rows.Err()
 }
 
+func (s *Store) ResetAll(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `
+TRUNCATE TABLE recon_web_endpoints, recon_subdomains, recon_root_domains, recon_jobs RESTART IDENTITY CASCADE
+`)
+	return err
+}
+
 func truncate(value string, max int) string {
 	value = strings.TrimSpace(value)
 	if max <= 0 || len(value) <= max {

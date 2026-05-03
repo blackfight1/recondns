@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -24,7 +25,11 @@ type Service struct {
 	subfinder  *runner.SubfinderRunner
 	bbot       *runner.BBOTRunner
 	rapiddns   *runner.RapidDNSRunner
-	httpx      *runner.HTTPXRunner
+}
+
+type CollectResult struct {
+	Roots      []string
+	Subdomains []string
 }
 
 func NewService(store *storage.Store, cfg config.Config) *Service {
@@ -35,8 +40,35 @@ func NewService(store *storage.Store, cfg config.Config) *Service {
 		subfinder: &runner.SubfinderRunner{},
 		bbot:      &runner.BBOTRunner{PassiveOnly: cfg.BBOTPassiveOnly},
 		rapiddns:  &runner.RapidDNSRunner{},
-		httpx:     &runner.HTTPXRunner{TimeoutSec: cfg.HTTPXTimeoutSec, Retries: cfg.HTTPXRetries},
 	}
+}
+
+func (s *Service) Collect(ctx context.Context, roots []string) (CollectResult, error) {
+	roots = normalize.Domains(roots)
+	if len(roots) == 0 {
+		return CollectResult{}, fmt.Errorf("no valid root domains provided")
+	}
+
+	result := CollectResult{
+		Roots: roots,
+	}
+
+	subdomains, err := s.collectSubdomains(ctx, roots)
+	if err != nil {
+		return result, err
+	}
+
+	subs := make([]string, 0, len(subdomains))
+	for _, item := range subdomains {
+		if strings.TrimSpace(item.Subdomain) == "" {
+			continue
+		}
+		subs = append(subs, item.Subdomain)
+	}
+	sort.Strings(subs)
+	result.Subdomains = subs
+
+	return result, nil
 }
 
 func (s *Service) SubmitJob(ctx context.Context, inputFile, source string, notifyEnabled bool) (model.ReconJob, error) {
@@ -116,34 +148,12 @@ func (s *Service) processJob(ctx context.Context, job model.ReconJobWithRoots) e
 		return err
 	}
 
-	subdomainHosts := make([]string, 0, len(subdomains))
-	for _, item := range subdomains {
-		subdomainHosts = append(subdomainHosts, item.Subdomain)
-	}
-
-	log.Printf("[job:%d] httpx probing hosts=%d", job.ID, len(subdomainHosts))
-	endpoints, probeErr := s.httpx.Probe(ctx, job.RootDomains, subdomainHosts)
-	if probeErr != nil {
-		log.Printf("[job:%d] httpx finished with warning: %v", job.ID, probeErr)
-	}
-	log.Printf("[job:%d] httpx complete live_urls=%d", job.ID, len(endpoints))
-
-	log.Printf("[job:%d] writing live URLs to database", job.ID)
-	if err := s.store.UpsertWebEndpoints(ctx, job, endpoints); err != nil {
-		log.Printf("[job:%d] web endpoint DB write failed: %v", job.ID, err)
-		_ = s.store.MarkJobFailed(ctx, job.ID, err.Error())
-		if job.NotifyEnabled {
-			_ = s.notifier.SendJobEnd(job.ID, job.Source, false, time.Since(start), len(subdomains), len(endpoints), err.Error())
-		}
+	if err := s.store.MarkJobSucceeded(ctx, job.ID, len(subdomains), 0); err != nil {
 		return err
 	}
-
-	if err := s.store.MarkJobSucceeded(ctx, job.ID, len(subdomains), len(endpoints)); err != nil {
-		return err
-	}
-	log.Printf("[job:%d] success duration=%s subdomains=%d live_urls=%d", job.ID, time.Since(start).Round(time.Second), len(subdomains), len(endpoints))
+	log.Printf("[job:%d] success duration=%s subdomains=%d", job.ID, time.Since(start).Round(time.Second), len(subdomains))
 	if job.NotifyEnabled {
-		_ = s.notifier.SendJobEnd(job.ID, job.Source, true, time.Since(start), len(subdomains), len(endpoints), "")
+		_ = s.notifier.SendJobEnd(job.ID, job.Source, true, time.Since(start), len(subdomains), 0, "")
 	}
 	return nil
 }
@@ -230,4 +240,15 @@ func (s *Service) ExportSubdomains(ctx context.Context, source string) ([]string
 
 func (s *Service) ExportURLs(ctx context.Context, source string) ([]string, error) {
 	return s.store.ExportURLs(ctx, source)
+}
+
+func (s *Service) ResetAll(ctx context.Context) error {
+	return s.store.ResetAll(ctx)
+}
+
+func (s *Service) NotifyText(message string) error {
+	if s.notifier == nil || !s.notifier.Enabled() {
+		return nil
+	}
+	return s.notifier.SendText(message)
 }
