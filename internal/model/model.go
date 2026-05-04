@@ -20,7 +20,6 @@ type ReconJob struct {
 	WorkerID        string
 	RootDomainCount int
 	SubdomainCount  int
-	LiveURLCount    int
 	ErrorMessage    string
 	StartedAt       *time.Time
 	FinishedAt      *time.Time
@@ -37,21 +36,4 @@ type SubdomainAsset struct {
 	RootDomain   string
 	Subdomain    string
 	DiscoveredBy []string
-}
-
-type WebEndpoint struct {
-	RootDomain  string
-	Subdomain   string
-	URL         string
-	Host        string
-	Scheme      string
-	Port        int
-	StatusCode  int
-	Title       string
-	Tech        []string
-	IP          string
-	Webserver   string
-	CDN         bool
-	CDNName     string
-	ContentType string
 }

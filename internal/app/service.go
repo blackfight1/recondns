@@ -23,7 +23,6 @@ type Service struct {
 	cfg        config.Config
 	notifier   *notify.FeishuNotifier
 	subfinder  *runner.SubfinderRunner
-	bbot       *runner.BBOTRunner
 	rapiddns   *runner.RapidDNSRunner
 }
 
@@ -38,7 +37,6 @@ func NewService(store *storage.Store, cfg config.Config) *Service {
 		cfg:       cfg,
 		notifier:  notify.NewFeishuNotifier(cfg.FeishuWebhook, true),
 		subfinder: &runner.SubfinderRunner{},
-		bbot:      &runner.BBOTRunner{PassiveOnly: cfg.BBOTPassiveOnly},
 		rapiddns:  &runner.RapidDNSRunner{},
 	}
 }
@@ -148,7 +146,7 @@ func (s *Service) processJob(ctx context.Context, job model.ReconJobWithRoots) e
 		return err
 	}
 
-	if err := s.store.MarkJobSucceeded(ctx, job.ID, len(subdomains), 0); err != nil {
+	if err := s.store.MarkJobSucceeded(ctx, job.ID, len(subdomains)); err != nil {
 		return err
 	}
 	log.Printf("[job:%d] success duration=%s subdomains=%d", job.ID, time.Since(start).Round(time.Second), len(subdomains))
@@ -165,7 +163,7 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		err   error
 		dur   time.Duration
 	}
-	ch := make(chan result, 3)
+	ch := make(chan result, 2)
 	var wg sync.WaitGroup
 
 	runCollector := func(tool string, fn func(context.Context, []string) ([]string, error)) {
@@ -176,9 +174,8 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		ch <- result{tool: tool, hosts: hosts, err: err, dur: time.Since(toolStart)}
 	}
 
-	wg.Add(3)
+	wg.Add(2)
 	go runCollector(s.subfinder.Name(), s.subfinder.Collect)
-	go runCollector(s.bbot.Name(), s.bbot.Collect)
 	go runCollector(s.rapiddns.Name(), s.rapiddns.Collect)
 
 	go func() {
@@ -236,10 +233,6 @@ func (s *Service) ListJobs(ctx context.Context, limit int) ([]model.ReconJob, er
 
 func (s *Service) ExportSubdomains(ctx context.Context, source string) ([]string, error) {
 	return s.store.ExportSubdomains(ctx, source)
-}
-
-func (s *Service) ExportURLs(ctx context.Context, source string) ([]string, error) {
-	return s.store.ExportURLs(ctx, source)
 }
 
 func (s *Service) ResetAll(ctx context.Context) error {

@@ -5,7 +5,6 @@
 It combines:
 
 - `subfinder`
-- `bbot`
 - `rapiddns-cli`
 
 and outputs a clean subdomain list.
@@ -55,13 +54,11 @@ go build -o recondns ./cmd/recondns
 These binaries must be available in `PATH`:
 
 - `subfinder`
-- `bbot`
 - `rapiddns-cli`
 
 ## Notes
 
 - `subfinder` uses `-dL` internally for batch mode
-- `bbot` is run once with all root domains as targets
 - `rapiddns-cli` is queried once per root domain and results are merged
 - output is deduplicated and normalized
 - `-notify` is optional if you want a Feishu message after completion

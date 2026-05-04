@@ -134,10 +134,8 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Collectors:")
 	fmt.Println("  subfinder")
-	fmt.Println("  bbot")
 	fmt.Println("  rapiddns-cli")
 	fmt.Println()
 	fmt.Println("Environment:")
 	fmt.Println("  FEISHU_WEBHOOK      Feishu bot webhook")
-	fmt.Println("  BBOT_PASSIVE_ONLY   true/false (default true)")
 }

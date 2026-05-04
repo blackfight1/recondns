@@ -11,7 +11,6 @@ const defaultFeishuWebhook = "https://open.feishu.cn/open-apis/bot/v2/hook/0ef53
 type Config struct {
 	DBDSN              string
 	WorkerPollInterval time.Duration
-	BBOTPassiveOnly    bool
 	FeishuWebhook      string
 }
 
@@ -19,7 +18,6 @@ func Load() (Config, error) {
 	cfg := Config{
 		DBDSN:              strings.TrimSpace(os.Getenv("RECONDNS_DB_DSN")),
 		WorkerPollInterval: 10 * time.Second,
-		BBOTPassiveOnly:    envBool("BBOT_PASSIVE_ONLY", true),
 		FeishuWebhook:      firstNonEmpty(strings.TrimSpace(os.Getenv("FEISHU_WEBHOOK")), defaultFeishuWebhook),
 	}
 
@@ -39,16 +37,4 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func envBool(key string, defaultVal bool) bool {
-	raw := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
-	switch raw {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return defaultVal
-	}
 }
