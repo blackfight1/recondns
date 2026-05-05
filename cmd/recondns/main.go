@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -37,6 +38,7 @@ func run(args []string) error {
 	domain := fs.String("d", "", "Single root domain")
 	domainList := fs.String("dL", "", "Input file with one root domain per line")
 	output := fs.String("o", "", "Output file")
+	jsonOutput := fs.Bool("json", false, "Output JSON")
 	notifyEnabled := fs.Bool("notify", false, "Send Feishu notification after run")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -58,7 +60,7 @@ func run(args []string) error {
 		return err
 	}
 
-	if err := writeOrPrint(result.Subdomains, *output); err != nil {
+	if err := writeOutput(result, *output, *jsonOutput); err != nil {
 		return err
 	}
 
@@ -100,23 +102,45 @@ func resolveRoots(domain, domainList string) ([]string, error) {
 	return nil, errors.New("usage: recondns -d hackerone.com -o h1-subs.txt | recondns -dL h1.txt -o h1-subs.txt")
 }
 
-func writeOrPrint(lines []string, output string) error {
-	if strings.TrimSpace(output) != "" {
-		data := strings.Join(lines, "\n")
-		if len(lines) > 0 {
-			data += "\n"
-		}
-		if err := os.WriteFile(output, []byte(data), 0o644); err != nil {
+func writeOutput(result app.CollectResult, output string, jsonOutput bool) error {
+	var (
+		data []byte
+		err  error
+	)
+
+	if jsonOutput {
+		data, err = json.MarshalIndent(struct {
+			Roots      []string `json:"roots"`
+			Subdomains []string `json:"subdomains"`
+		}{
+			Roots:      result.Roots,
+			Subdomains: result.Subdomains,
+		}, "", "  ")
+		if err != nil {
 			return err
 		}
-		fmt.Printf("wrote %d lines to %s\n", len(lines), output)
+		data = append(data, '\n')
+	} else {
+		data = []byte(strings.Join(result.Subdomains, "\n"))
+		if len(result.Subdomains) > 0 {
+			data = append(data, '\n')
+		}
+	}
+
+	if strings.TrimSpace(output) != "" {
+		if err := os.WriteFile(output, data, 0o644); err != nil {
+			return err
+		}
+		if jsonOutput {
+			fmt.Printf("wrote JSON with %d subdomains to %s\n", len(result.Subdomains), output)
+		} else {
+			fmt.Printf("wrote %d lines to %s\n", len(result.Subdomains), output)
+		}
 		return nil
 	}
 
-	for _, line := range lines {
-		fmt.Println(line)
-	}
-	return nil
+	_, err = os.Stdout.Write(data)
+	return err
 }
 
 func printUsage() {
@@ -130,6 +154,7 @@ func printUsage() {
 	fmt.Println("  -d        single root domain")
 	fmt.Println("  -dL       input file, one root domain per line")
 	fmt.Println("  -o        output file, default stdout")
+	fmt.Println("  -json     output JSON with roots and subdomains")
 	fmt.Println("  -notify   send Feishu notification")
 	fmt.Println()
 	fmt.Println("Collectors:")

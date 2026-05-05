@@ -24,6 +24,13 @@ Batch input:
 recondns -dL h1.txt -o h1-subs.txt
 ```
 
+JSON output:
+
+```bash
+recondns -d hackerone.com -json
+recondns -dL h1.txt -json -o h1-subs.json
+```
+
 Without `-o`, results are printed to stdout:
 
 ```bash
