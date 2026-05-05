@@ -5,6 +5,7 @@
 It combines:
 
 - `subfinder`
+- `chaos`
 - `rapiddns-cli`
 
 and outputs a clean subdomain list.
@@ -54,11 +55,14 @@ go build -o recondns ./cmd/recondns
 These binaries must be available in `PATH`:
 
 - `subfinder`
+- `chaos`
 - `rapiddns-cli`
 
 ## Notes
 
 - `subfinder` uses `-dL` internally for batch mode
+- `chaos` uses `-dL` for batch mode and silently skips empty/no-result cases
 - `rapiddns-cli` is queried once per root domain and results are merged
 - output is deduplicated and normalized
 - `-notify` is optional if you want a Feishu message after completion
+- Chaos has a built-in default API key; set `CHAOS_KEY` or `PDCP_API_KEY` only if you want to override it

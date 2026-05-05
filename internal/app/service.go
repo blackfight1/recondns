@@ -23,6 +23,7 @@ type Service struct {
 	cfg        config.Config
 	notifier   *notify.FeishuNotifier
 	subfinder  *runner.SubfinderRunner
+	chaos      *runner.ChaosRunner
 	rapiddns   *runner.RapidDNSRunner
 }
 
@@ -37,6 +38,7 @@ func NewService(store *storage.Store, cfg config.Config) *Service {
 		cfg:       cfg,
 		notifier:  notify.NewFeishuNotifier(cfg.FeishuWebhook, true),
 		subfinder: &runner.SubfinderRunner{},
+		chaos:     &runner.ChaosRunner{},
 		rapiddns:  &runner.RapidDNSRunner{},
 	}
 }
@@ -163,7 +165,7 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		err   error
 		dur   time.Duration
 	}
-	ch := make(chan result, 2)
+	ch := make(chan result, 3)
 	var wg sync.WaitGroup
 
 	runCollector := func(tool string, fn func(context.Context, []string) ([]string, error)) {
@@ -174,8 +176,9 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		ch <- result{tool: tool, hosts: hosts, err: err, dur: time.Since(toolStart)}
 	}
 
-	wg.Add(2)
+	wg.Add(3)
 	go runCollector(s.subfinder.Name(), s.subfinder.Collect)
+	go runCollector(s.chaos.Name(), s.chaos.Collect)
 	go runCollector(s.rapiddns.Name(), s.rapiddns.Collect)
 
 	go func() {

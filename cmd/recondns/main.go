@@ -134,8 +134,11 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Collectors:")
 	fmt.Println("  subfinder")
+	fmt.Println("  chaos")
 	fmt.Println("  rapiddns-cli")
 	fmt.Println()
 	fmt.Println("Environment:")
+	fmt.Println("  CHAOS_KEY           Chaos API key (optional)")
+	fmt.Println("  PDCP_API_KEY        Alternate Chaos API key env name")
 	fmt.Println("  FEISHU_WEBHOOK      Feishu bot webhook")
 }
