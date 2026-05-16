@@ -6,6 +6,7 @@ It combines:
 
 - `subfinder`
 - `chaos`
+- `findomain`
 - `rapiddns-cli`
 
 and outputs a clean subdomain list.
@@ -69,6 +70,7 @@ These binaries must be available in `PATH`:
 
 - `subfinder` uses `-dL` internally for batch mode
 - `chaos` uses `-dL` for batch mode and silently skips empty/no-result cases
+- `findomain` uses the official file input mode (`-f`) for batch runs and `-t` for single targets
 - `rapiddns-cli` is queried once per root domain and results are merged
 - output is deduplicated and normalized
 - `-notify` is optional if you want a Feishu message after completion

@@ -160,6 +160,7 @@ func printUsage() {
 	fmt.Println("Collectors:")
 	fmt.Println("  subfinder")
 	fmt.Println("  chaos")
+	fmt.Println("  findomain")
 	fmt.Println("  rapiddns-cli")
 	fmt.Println()
 	fmt.Println("Environment:")
