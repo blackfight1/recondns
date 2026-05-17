@@ -10,22 +10,20 @@ import (
 	"time"
 
 	"recondns/internal/config"
-	"recondns/internal/input"
 	"recondns/internal/model"
 	"recondns/internal/normalize"
 	"recondns/internal/notify"
 	"recondns/internal/runner"
-	"recondns/internal/storage"
 )
 
 type Service struct {
-	store     *storage.Store
-	cfg       config.Config
-	notifier  *notify.FeishuNotifier
-	subfinder *runner.SubfinderRunner
-	chaos     *runner.ChaosRunner
-	findomain *runner.FindomainRunner
-	rapiddns  *runner.RapidDNSRunner
+	cfg         config.Config
+	notifier    *notify.FeishuNotifier
+	subfinder   *runner.SubfinderRunner
+	chaos       *runner.ChaosRunner
+	assetfinder *runner.AssetfinderRunner
+	findomain   *runner.FindomainRunner
+	rapiddns    *runner.RapidDNSRunner
 }
 
 type CollectResult struct {
@@ -33,15 +31,15 @@ type CollectResult struct {
 	Subdomains []string
 }
 
-func NewService(store *storage.Store, cfg config.Config) *Service {
+func NewService(cfg config.Config) *Service {
 	return &Service{
-		store:     store,
-		cfg:       cfg,
-		notifier:  notify.NewFeishuNotifier(cfg.FeishuWebhook, true),
-		subfinder: &runner.SubfinderRunner{},
-		chaos:     &runner.ChaosRunner{},
-		findomain: &runner.FindomainRunner{},
-		rapiddns:  &runner.RapidDNSRunner{},
+		cfg:         cfg,
+		notifier:    notify.NewFeishuNotifier(cfg.FeishuWebhook, true),
+		subfinder:   &runner.SubfinderRunner{},
+		chaos:       &runner.ChaosRunner{},
+		assetfinder: &runner.AssetfinderRunner{},
+		findomain:   &runner.FindomainRunner{},
+		rapiddns:    &runner.RapidDNSRunner{},
 	}
 }
 
@@ -73,93 +71,6 @@ func (s *Service) Collect(ctx context.Context, roots []string) (CollectResult, e
 	return result, nil
 }
 
-func (s *Service) SubmitJob(ctx context.Context, inputFile, source string, notifyEnabled bool) (model.ReconJob, error) {
-	roots, err := input.ReadLines(inputFile)
-	if err != nil {
-		return model.ReconJob{}, err
-	}
-	roots = normalize.Domains(roots)
-	if len(roots) == 0 {
-		return model.ReconJob{}, fmt.Errorf("no valid root domains found in %s", inputFile)
-	}
-
-	job, err := s.store.SubmitJob(ctx, source, inputFile, roots, notifyEnabled)
-	if err != nil {
-		return model.ReconJob{}, err
-	}
-	if notifyEnabled {
-		_ = s.notifier.SendJobQueued(job.ID, job.Source, roots)
-	}
-	return job, nil
-}
-
-func (s *Service) ProcessNextQueuedJob(ctx context.Context, workerID string) (bool, error) {
-	job, ok, err := s.store.ClaimNextQueuedJob(ctx, workerID)
-	if err != nil || !ok {
-		return ok, err
-	}
-	log.Printf("[job:%d] claimed source=%s roots=%d worker=%s", job.ID, job.Source, len(job.RootDomains), workerID)
-	return true, s.processJob(ctx, job)
-}
-
-func (s *Service) ProcessJobByID(ctx context.Context, jobID int64, workerID string) error {
-	job, err := s.store.LoadJob(ctx, jobID)
-	if err != nil {
-		return err
-	}
-	if job.Status == model.JobQueued {
-		claimed, ok, err := s.store.ClaimNextQueuedJob(ctx, workerID)
-		if err == nil && ok && claimed.ID == jobID {
-			job = claimed
-		}
-	}
-	if job.Status != model.JobRunning {
-		now := time.Now().UTC()
-		job.Status = model.JobRunning
-		job.WorkerID = workerID
-		job.StartedAt = &now
-	}
-	return s.processJob(ctx, job)
-}
-
-func (s *Service) processJob(ctx context.Context, job model.ReconJobWithRoots) error {
-	start := time.Now()
-	log.Printf("[job:%d] start source=%s roots=%d input=%s", job.ID, job.Source, len(job.RootDomains), job.InputFile)
-	if job.NotifyEnabled {
-		_ = s.notifier.SendJobStart(job.ID, job.Source, job.RootDomains)
-	}
-
-	subdomains, err := s.collectSubdomains(ctx, job.RootDomains)
-	if err != nil {
-		log.Printf("[job:%d] subdomain collection failed after %s: %v", job.ID, time.Since(start).Round(time.Second), err)
-		_ = s.store.MarkJobFailed(ctx, job.ID, err.Error())
-		if job.NotifyEnabled {
-			_ = s.notifier.SendJobEnd(job.ID, job.Source, false, time.Since(start), 0, 0, err.Error())
-		}
-		return err
-	}
-	log.Printf("[job:%d] subdomain collection complete unique=%d", job.ID, len(subdomains))
-
-	log.Printf("[job:%d] writing subdomains to database", job.ID)
-	if err := s.store.UpsertSubdomains(ctx, job, subdomains); err != nil {
-		log.Printf("[job:%d] subdomain DB write failed: %v", job.ID, err)
-		_ = s.store.MarkJobFailed(ctx, job.ID, err.Error())
-		if job.NotifyEnabled {
-			_ = s.notifier.SendJobEnd(job.ID, job.Source, false, time.Since(start), len(subdomains), 0, err.Error())
-		}
-		return err
-	}
-
-	if err := s.store.MarkJobSucceeded(ctx, job.ID, len(subdomains)); err != nil {
-		return err
-	}
-	log.Printf("[job:%d] success duration=%s subdomains=%d", job.ID, time.Since(start).Round(time.Second), len(subdomains))
-	if job.NotifyEnabled {
-		_ = s.notifier.SendJobEnd(job.ID, job.Source, true, time.Since(start), len(subdomains), 0, "")
-	}
-	return nil
-}
-
 func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]model.SubdomainAsset, error) {
 	type result struct {
 		tool  string
@@ -167,7 +78,7 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		err   error
 		dur   time.Duration
 	}
-	ch := make(chan result, 4)
+	ch := make(chan result, 5)
 	var wg sync.WaitGroup
 
 	runCollector := func(tool string, fn func(context.Context, []string) ([]string, error)) {
@@ -178,9 +89,10 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		ch <- result{tool: tool, hosts: hosts, err: err, dur: time.Since(toolStart)}
 	}
 
-	wg.Add(4)
+	wg.Add(5)
 	go runCollector(s.subfinder.Name(), s.subfinder.Collect)
 	go runCollector(s.chaos.Name(), s.chaos.Collect)
+	go runCollector(s.assetfinder.Name(), s.assetfinder.Collect)
 	go runCollector(s.findomain.Name(), s.findomain.Collect)
 	go runCollector(s.rapiddns.Name(), s.rapiddns.Collect)
 
@@ -231,18 +143,6 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		})
 	}
 	return out, nil
-}
-
-func (s *Service) ListJobs(ctx context.Context, limit int) ([]model.ReconJob, error) {
-	return s.store.ListJobs(ctx, limit)
-}
-
-func (s *Service) ExportSubdomains(ctx context.Context, source string) ([]string, error) {
-	return s.store.ExportSubdomains(ctx, source)
-}
-
-func (s *Service) ResetAll(ctx context.Context) error {
-	return s.store.ResetAll(ctx)
 }
 
 func (s *Service) NotifyText(message string) error {

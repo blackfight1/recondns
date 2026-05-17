@@ -6,6 +6,7 @@ It combines:
 
 - `subfinder`
 - `chaos`
+- `assetfinder`
 - `findomain`
 - `rapiddns-cli`
 
@@ -64,14 +65,18 @@ These binaries must be available in `PATH`:
 
 - `subfinder`
 - `chaos`
+- `assetfinder`
+- `findomain`
 - `rapiddns-cli`
 
 ## Notes
 
 - `subfinder` uses `-dL` internally for batch mode
 - `chaos` uses `-dL` for batch mode and silently skips empty/no-result cases
+- `assetfinder` uses `assetfinder --subs-only <domain>` and batch mode is implemented as one-by-one execution because upstream does not provide native file/stdin batch input yet
 - `findomain` uses the official file input mode (`-f`) for batch runs and `-t` for single targets
 - `rapiddns-cli` is queried once per root domain and results are merged
 - output is deduplicated and normalized
 - `-notify` is optional if you want a Feishu message after completion
 - Chaos has a built-in default API key; set `CHAOS_KEY` or `PDCP_API_KEY` only if you want to override it
+- current version is a pure CLI enumerator and does not depend on PostgreSQL

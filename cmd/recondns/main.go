@@ -54,7 +54,7 @@ func run(args []string) error {
 		return err
 	}
 
-	service := app.NewService(nil, cfg)
+	service := app.NewService(cfg)
 	result, err := service.Collect(context.Background(), roots)
 	if err != nil {
 		return err
@@ -160,6 +160,7 @@ func printUsage() {
 	fmt.Println("Collectors:")
 	fmt.Println("  subfinder")
 	fmt.Println("  chaos")
+	fmt.Println("  assetfinder")
 	fmt.Println("  findomain")
 	fmt.Println("  rapiddns-cli")
 	fmt.Println()
