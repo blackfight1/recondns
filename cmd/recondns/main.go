@@ -162,7 +162,6 @@ func printUsage() {
 	fmt.Println("  chaos")
 	fmt.Println("  assetfinder")
 	fmt.Println("  findomain")
-	fmt.Println("  rapiddns-cli")
 	fmt.Println()
 	fmt.Println("Environment:")
 	fmt.Println("  CHAOS_KEY           Chaos API key (optional)")

@@ -23,7 +23,6 @@ type Service struct {
 	chaos       *runner.ChaosRunner
 	assetfinder *runner.AssetfinderRunner
 	findomain   *runner.FindomainRunner
-	rapiddns    *runner.RapidDNSRunner
 }
 
 type CollectResult struct {
@@ -39,7 +38,6 @@ func NewService(cfg config.Config) *Service {
 		chaos:       &runner.ChaosRunner{},
 		assetfinder: &runner.AssetfinderRunner{},
 		findomain:   &runner.FindomainRunner{},
-		rapiddns:    &runner.RapidDNSRunner{},
 	}
 }
 
@@ -78,7 +76,7 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		err   error
 		dur   time.Duration
 	}
-	ch := make(chan result, 5)
+	ch := make(chan result, 4)
 	var wg sync.WaitGroup
 
 	runCollector := func(tool string, fn func(context.Context, []string) ([]string, error)) {
@@ -89,12 +87,11 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		ch <- result{tool: tool, hosts: hosts, err: err, dur: time.Since(toolStart)}
 	}
 
-	wg.Add(5)
+	wg.Add(4)
 	go runCollector(s.subfinder.Name(), s.subfinder.Collect)
 	go runCollector(s.chaos.Name(), s.chaos.Collect)
 	go runCollector(s.assetfinder.Name(), s.assetfinder.Collect)
 	go runCollector(s.findomain.Name(), s.findomain.Collect)
-	go runCollector(s.rapiddns.Name(), s.rapiddns.Collect)
 
 	go func() {
 		wg.Wait()
