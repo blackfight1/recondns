@@ -1,79 +1,52 @@
 # recondns
 
-`recondns` is a small Go CLI for subdomain enumeration.
-
-It combines:
-
-- `subfinder`
-- `chaos`
-- `assetfinder`
-- `findomain`
-
-and outputs a clean subdomain list.
+Go CLI that runs **subfinder**, **chaos**, **assetfinder**, **findomain**, and **bbot** (passive) in parallel, then outputs a deduplicated subdomain list.
 
 ## Usage
 
-Single domain:
-
 ```bash
+# single domain
 recondns -d hackerone.com -o h1-subs.txt
-```
 
-Batch input:
+# domain list
+recondns -dL domains.txt -o subs.txt
 
-```bash
-recondns -dL h1.txt -o h1-subs.txt
-```
-
-JSON output:
-
-```bash
+# JSON / stdout
 recondns -d hackerone.com -json
-recondns -dL h1.txt -json -o h1-subs.json
-```
-
-Without `-o`, results are printed to stdout:
-
-```bash
 recondns -d hackerone.com
-recondns -dL h1.txt
 ```
 
-## Input file format
-
-One root domain per line:
-
-```txt
-hackerone.com
-bugcrowd.com
-example.com
-```
-
-Empty lines and lines starting with `#` are ignored.
+| Flag | Description |
+|------|-------------|
+| `-d` | Single root domain |
+| `-dL` | File with one root domain per line (`#` and empty lines ignored) |
+| `-o` | Output file (default: stdout) |
+| `-json` | JSON output (`roots` + `subdomains`) |
 
 ## Build
 
 ```bash
-cd /root/recondns
 go build -o recondns ./cmd/recondns
 ```
 
-## Required tools
+## Requirements
 
-These binaries must be available in `PATH`:
+These binaries must be on `PATH`:
 
 - `subfinder`
 - `chaos`
 - `assetfinder`
 - `findomain`
+- `bbot` ([install](https://github.com/blacklanternsecurity/bbot))
 
-## Notes
+Optional env: `CHAOS_KEY` or `PDCP_API_KEY` (overrides the built-in Chaos key).
 
-- `subfinder` uses `-dL` internally for batch mode
-- `chaos` uses `-dL` for batch mode and silently skips empty/no-result cases
-- `assetfinder` uses `assetfinder --subs-only <domain>` and batch mode is implemented as one-by-one execution because upstream does not provide native file/stdin batch input yet
-- `findomain` uses the official file input mode (`-f`) for batch runs and `-t` for single targets
-- output is deduplicated and normalized
-- `-notify` is optional if you want a Feishu message after completion
-- Chaos has a built-in default API key; set `CHAOS_KEY` or `PDCP_API_KEY` only if you want to override it
-- current version is a pure CLI enumerator and does not depend on PostgreSQL
+### bbot
+
+Uses passive subdomain enum only:
+
+```bash
+bbot -t <targets> -p subdomain-enum -rf passive -y
+```
+
+Results come from `subdomains.txt` (in-scope, resolved). API keys go in `~/.config/bbot/` as usual.

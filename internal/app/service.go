@@ -9,20 +9,17 @@ import (
 	"sync"
 	"time"
 
-	"recondns/internal/config"
 	"recondns/internal/model"
 	"recondns/internal/normalize"
-	"recondns/internal/notify"
 	"recondns/internal/runner"
 )
 
 type Service struct {
-	cfg         config.Config
-	notifier    *notify.FeishuNotifier
 	subfinder   *runner.SubfinderRunner
 	chaos       *runner.ChaosRunner
 	assetfinder *runner.AssetfinderRunner
 	findomain   *runner.FindomainRunner
+	bbot        *runner.BbotRunner
 }
 
 type CollectResult struct {
@@ -30,14 +27,13 @@ type CollectResult struct {
 	Subdomains []string
 }
 
-func NewService(cfg config.Config) *Service {
+func NewService() *Service {
 	return &Service{
-		cfg:         cfg,
-		notifier:    notify.NewFeishuNotifier(cfg.FeishuWebhook, true),
 		subfinder:   &runner.SubfinderRunner{},
 		chaos:       &runner.ChaosRunner{},
 		assetfinder: &runner.AssetfinderRunner{},
 		findomain:   &runner.FindomainRunner{},
+		bbot:        &runner.BbotRunner{},
 	}
 }
 
@@ -76,7 +72,7 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		err   error
 		dur   time.Duration
 	}
-	ch := make(chan result, 4)
+	ch := make(chan result, 5)
 	var wg sync.WaitGroup
 
 	runCollector := func(tool string, fn func(context.Context, []string) ([]string, error)) {
@@ -87,11 +83,12 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		ch <- result{tool: tool, hosts: hosts, err: err, dur: time.Since(toolStart)}
 	}
 
-	wg.Add(4)
+	wg.Add(5)
 	go runCollector(s.subfinder.Name(), s.subfinder.Collect)
 	go runCollector(s.chaos.Name(), s.chaos.Collect)
 	go runCollector(s.assetfinder.Name(), s.assetfinder.Collect)
 	go runCollector(s.findomain.Name(), s.findomain.Collect)
+	go runCollector(s.bbot.Name(), s.bbot.Collect)
 
 	go func() {
 		wg.Wait()
@@ -123,7 +120,7 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 	}
 
 	if len(merged) == 0 && len(errs) > 0 {
-		return nil, fmt.Errorf(strings.Join(errs, " | "))
+		return nil, fmt.Errorf("%s", strings.Join(errs, " | "))
 	}
 
 	out := make([]model.SubdomainAsset, 0, len(merged))
@@ -140,11 +137,4 @@ func (s *Service) collectSubdomains(ctx context.Context, roots []string) ([]mode
 		})
 	}
 	return out, nil
-}
-
-func (s *Service) NotifyText(message string) error {
-	if s.notifier == nil || !s.notifier.Enabled() {
-		return nil
-	}
-	return s.notifier.SendText(message)
 }

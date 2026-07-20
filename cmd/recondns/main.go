@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"recondns/internal/app"
-	"recondns/internal/config"
 	"recondns/internal/input"
 )
 
@@ -39,7 +38,6 @@ func run(args []string) error {
 	domainList := fs.String("dL", "", "Input file with one root domain per line")
 	output := fs.String("o", "", "Output file")
 	jsonOutput := fs.Bool("json", false, "Output JSON")
-	notifyEnabled := fs.Bool("notify", false, "Send Feishu notification after run")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -49,33 +47,13 @@ func run(args []string) error {
 		return err
 	}
 
-	cfg, err := config.Load()
-	if err != nil {
-		return err
-	}
-
-	service := app.NewService(cfg)
+	service := app.NewService()
 	result, err := service.Collect(context.Background(), roots)
 	if err != nil {
 		return err
 	}
 
-	if err := writeOutput(result, *output, *jsonOutput); err != nil {
-		return err
-	}
-
-	if *notifyEnabled {
-		message := fmt.Sprintf(
-			"[Recondns] Finished\nRoots: %d\nSubdomains: %d",
-			len(result.Roots),
-			len(result.Subdomains),
-		)
-		if err := service.NotifyText(message); err != nil {
-			log.Printf("notify warning: %v", err)
-		}
-	}
-
-	return nil
+	return writeOutput(result, *output, *jsonOutput)
 }
 
 func resolveRoots(domain, domainList string) ([]string, error) {
@@ -155,16 +133,10 @@ func printUsage() {
 	fmt.Println("  -dL       input file, one root domain per line")
 	fmt.Println("  -o        output file, default stdout")
 	fmt.Println("  -json     output JSON with roots and subdomains")
-	fmt.Println("  -notify   send Feishu notification")
 	fmt.Println()
 	fmt.Println("Collectors:")
-	fmt.Println("  subfinder")
-	fmt.Println("  chaos")
-	fmt.Println("  assetfinder")
-	fmt.Println("  findomain")
+	fmt.Println("  subfinder, chaos, assetfinder, findomain, bbot (passive)")
 	fmt.Println()
 	fmt.Println("Environment:")
-	fmt.Println("  CHAOS_KEY           Chaos API key (optional)")
-	fmt.Println("  PDCP_API_KEY        Alternate Chaos API key env name")
-	fmt.Println("  FEISHU_WEBHOOK      Feishu bot webhook")
+	fmt.Println("  CHAOS_KEY / PDCP_API_KEY   Chaos API key (optional)")
 }
